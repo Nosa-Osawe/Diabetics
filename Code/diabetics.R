@@ -4,6 +4,10 @@ library(MASS)
 library(stats)
 library(haven)
 library(randomForest)
+library(class)
+library(caret)
+library(pROC)
+library(mlbench)
 
 ## Load in data
 Diabetics <- read.csv("C:\\Users\\HP\\Documents\\Diabetics\\Data\\diabetes.csv")
@@ -86,38 +90,5 @@ print(accuracy2)   # 84.68%
 #####################################################################################################
 
 
-resampled_diabetics <- read.csv("C:\\Users\\HP\\Documents\\Diabetics\\Data\\diabetics_resampled.csv")
-view(resampled_diabetics)
-attach(resampled_diabetics)
-
-resampled_diabetics$Diabetes_binary <- factor(resampled_diabetics$Diabetes_binary)
-#Random sampling 
-R_RF_samplesize = 0.70*nrow(resampled_diabetics)
-set.seed(9999)
-RRF_index = sample(seq_len(nrow(resampled_diabetics)), size = R_RF_samplesize)
-#Creating training and test set 
-R_train_RF <- resampled_diabetics[RRF_index,]
-R_test_RF <- resampled_diabetics[-RRF_index,]
-
-str(R_train_RF)
-str(R_test_RF)
-
-Binary_modelRandom <- randomForest(Diabetes_binary ~ BMI+ HighBP+HighChol+Age+Fruits+
-                                  Education+Sex+HvyAlcoholConsump+AnyHealthcare,
-                                data = R_train_RF)
-Binary_modelRandom <- randomForest(Diabetes_binary ~.,
-                                   data = R_train_RF)
-
-RF_pred2 <- predict(Binary_modelRandom, R_test_RF)
-R_test_RF$pred_diabetics <- RF_pred2
-
-##        create a confusion matrix
-CFM2 <- table(R_test_RF$Diabetes_binary, R_test_RF$pred_diabetics)
-CFM2
-
-accuracy2 <- sum(diag(CFM2)/sum(CFM2))
-print(accuracy2)  
 
 
-PrecisionRF2 <- (8261/(3086+8261))
-print(PrecisionRF2)     # precision score
