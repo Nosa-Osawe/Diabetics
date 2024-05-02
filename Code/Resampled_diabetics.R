@@ -1,6 +1,6 @@
 # Load in packages
 library(tidyverse)
-library(MASS)
+
 library(stats)
 library(haven)
 library(randomForest)
@@ -8,7 +8,9 @@ library(class)
 library(caret)
 library(pROC)
 library(mlbench)
-
+library(caTools)
+library(party)
+library(magrittr)
 
 resampled_diabetics <- read.csv("C:\\Users\\HP\\Documents\\Diabetics\\Data\\diabetics_resampled.csv")
 view(resampled_diabetics)
@@ -28,15 +30,21 @@ clean_Data <- clean_Data[, c("Diabetes_binary", "BMI", "HighBP", "HighChol",
                              "AnyHealthcare")]
 view(clean_Data)
 
-resampled_diabetics <- clean_Data
-resampled_diabetics$Diabetes_binary <- factor(resampled_diabetics$Diabetes_binary)
+
+###############################################################################
+
+#       Now construct the random forest
+
+rf_diabetics <- clean_Data
+
+rf_diabetics$Diabetes_binary <- factor(rf_diabetics$Diabetes_binary)
 #Random sampling 
-R_RF_samplesize = 0.70*nrow(resampled_diabetics)
+R_RF_samplesize = 0.70*nrow(rf_diabetics)
 set.seed(9999)
-RRF_index = sample(seq_len(nrow(resampled_diabetics)), size = R_RF_samplesize)
+RRF_index = sample(seq_len(nrow(rf_diabetics)), size = R_RF_samplesize)
 #Creating training and test set 
-R_train_RF <- resampled_diabetics[RRF_index,]
-R_test_RF <- resampled_diabetics[-RRF_index,]
+R_train_RF <- rf_diabetics[RRF_index,]
+R_test_RF <- rf_diabetics[-RRF_index,]
 
 str(R_train_RF)
 str(R_test_RF)
@@ -54,19 +62,28 @@ CFM2
 accuracy2 <- sum(diag(CFM2)/sum(CFM2))
 print(accuracy2)  
 
-
-PrecisionRF2 <- (8261/(3086+8261))
+PrecisionRF2 <- (8146/(3514+8146))
 print(PrecisionRF2)     # precision score
 
+Recall2 <- (8146/(2415+8146))
+Recall2
 
+F_measure2 <- 2*((PrecisionRF2*Recall2)/(PrecisionRF2+Recall2))
+F_measure2
 #####################################################################################
 
-##          logistic regression
+##          logistic regression (using the data set of the Random forest)
 
 
 log_model1 <- glm(Diabetes_binary ~.,
                   data = R_train_RF, 
                   family = "binomial")
+
+summary(log_model1)
+
+coefficients(log_model1)
+
+
 predic_diabetics <- predict(log_model1, R_test_RF, type = "response")
 
 predic_diabetics <- ifelse(predic_diabetics >=.5, "1","0")
@@ -84,12 +101,17 @@ print(accuracy3)
 PrecisionRF3 <- (7887/(3253+7887))
 print(PrecisionRF3)     # precision score
 
+Recall3 <- (7887/(7887+2674))
+Recall3
+
+F_measure3 <- 2 * (PrecisionRF3*Recall3)/(PrecisionRF3+Recall3)
+F_measure3
 ###   #################################################################
 
 #       Lets do a KNN
 
 
-KNN_data<- KNN_data1
+KNN_data<- clean_Data
 
 KNN_data$Diabetes_binary <- factor(KNN_data$Diabetes_binary)
 
@@ -105,7 +127,7 @@ KNN_train1_label <- KNN_train1[,1]
 KNN_test1_label <-KNN_test1[,1]
 
 
-k_value = 5
+k_value = 7
 KNN_test_pred <- knn(train = KNN_train1, test = KNN_test1,
                      cl = KNN_train1_label, k=k_value)
 
@@ -118,38 +140,51 @@ CFM4
 accuracy4 <- sum(diag(CFM4)/sum(CFM4))
 print(accuracy4)
 
+Precision_knn <- (7887/(3253+7887))
+##################################################################
+knn_predicted <- c(KNN_test1_label, KNN_test_pred)
+table(KNN_test1_label)
+table(KNN_test_pred)
+view(knn_predicted)
+
 ##############################################################################
-#### Testing on the original data set
-
-Diabetics <- read.csv("C:\\Users\\HP\\Documents\\Diabetics\\Data\\diabetes.csv")
-
-test_diabetics <- Diabetics[, c("Diabetes_012", "BMI", "HighBP", "HighChol",
-                                       "Age", "Fruits", "Education", "Sex", "HvyAlcoholConsump",
-                                       "AnyHealthcare")]
-test_diabetics <- test_diabetics %>% 
-  filter(Diabetes_012!= "1")
-
-table(test_diabetics$Diabetes_012)
-
-test_diabetics$Diabetes_012 <- ifelse(test_diabetics$Diabetes_012 == "0", "0", "1")
-
-test_diabetics$Diabetes_012 <- factor(test_diabetics$Diabetes_012)
-is.factor(test_diabetics$Diabetes_012)
-
-test_diabetics$Diabetes_binary  <- test_diabetics$Diabetes_012
-
-RF_pred_original_data <- predict(Binary_modelRandom, test_diabetics)
-head(RF_pred_original_data)
 
 
-test_diabetics$predicted <- RF_pred_original_data
+#######################################################################################
+
+####   Create the decision tree model
+
+ dt_diabetics <- clean_Data
+
+
+dt_diabetics$Diabetes_binary <- factor(dt_diabetics$Diabetes_binary)
+#Random sampling 
+dt_samplesize = 0.70*nrow(dt_diabetics)
+set.seed(9999)
+dt_index = sample(seq_len(nrow(dt_diabetics)), size = dt_samplesize)
+#Creating training and test set 
+dt_train <- dt_diabetics[dt_index,]
+dt_test <- dt_diabetics[-dt_index,]
+
+str(dt_train)
+str(dt_test)
+
+dtmodel<- ctree(Diabetes_binary ~ ., dt_train)
+
+dt_pred2 <- predict(dtmodel, dt_test)
+dt_test$dt_pred2 <- dt_pred2
 
 ##        create a confusion matrix
-CFM5 <- table(test_diabetics$predicted, test_diabetics$Diabetes_binary )
-CFM5
+CFM6 <- table(dt_test$Diabetes_binary, dt_test$dt_pred2)
+CFM6
 
-accuracy5 <- sum(diag(CFM5)/sum(CFM5))
-print(accuracy5)  
+accuracy2 <- sum(diag(CFM6)/sum(CFM6))
+print(accuracy2)  
 
+(Precision_dt <- (7978/(3384+7978)))
 
+Recalldt <- 7978/(7978 + 2583)
+Recalldt
 
+F_measure <- 2* ((Precision_dt*Recalldt)/(Precision_dt+Recalldt))
+F_measure
